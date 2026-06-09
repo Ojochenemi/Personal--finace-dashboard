@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { Transaction, SpendingItem, BudgetComparisonItem } from '../types/api';
 import Card from '../components/ui/Card';
+import StatCard from '../components/ui/StatCard';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import SpendingByCategory from '../components/charts/SpendingByCategory';
 import BudgetVsActual from '../components/charts/BudgetVsActual';
@@ -20,6 +21,10 @@ function availableMonths() {
     months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
   return months.reverse();
+}
+
+function fmt(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export default function DashboardPage() {
@@ -47,6 +52,16 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [month]);
 
+  const totalIncome = transactions
+    .filter(tx => tx.type === 'credit')
+    .reduce((s, tx) => s + tx.amount_cents, 0);
+
+  const totalSpending = transactions
+    .filter(tx => tx.type === 'debit')
+    .reduce((s, tx) => s + tx.amount_cents, 0);
+
+  const netBalance = totalIncome - totalSpending;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -65,6 +80,28 @@ export default function DashboardPage() {
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
       )}
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {loading ? (
+          <>
+            <div className="bg-white rounded-2xl border border-slate-100 p-5 h-24 animate-pulse bg-slate-100" />
+            <div className="bg-white rounded-2xl border border-slate-100 p-5 h-24 animate-pulse bg-slate-100" />
+            <div className="bg-white rounded-2xl border border-slate-100 p-5 h-24 animate-pulse bg-slate-100" />
+          </>
+        ) : (
+          <>
+            <StatCard label="Total Income" value={fmt(totalIncome)} valueColor="text-emerald-600" sub={month} />
+            <StatCard label="Total Spending" value={fmt(totalSpending)} valueColor="text-slate-800" sub={month} />
+            <StatCard
+              label="Net Balance"
+              value={`${netBalance >= 0 ? '+' : '-'}${fmt(Math.abs(netBalance))}`}
+              valueColor={netBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}
+              sub={month}
+            />
+          </>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <Card title="Spending by Category">

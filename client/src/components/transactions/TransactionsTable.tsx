@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { Transaction } from '../../types/api';
 
 interface Props {
@@ -14,26 +14,75 @@ function formatAmount(cents: number, type: 'debit' | 'credit') {
   return `${sign}$${(cents / 100).toFixed(2)}`;
 }
 
+function exportCSV(rows: Transaction[]) {
+  const header = ['Date', 'Description', 'Category', 'Type', 'Amount'];
+  const lines = rows.map(tx => [
+    tx.date,
+    `"${tx.description.replace(/"/g, '""')}"`,
+    tx.category.name,
+    tx.type,
+    formatAmount(tx.amount_cents, tx.type),
+  ].join(','));
+  const csv = [header.join(','), ...lines].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `transactions.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function TransactionsTable({ transactions, total, page, onPageChange, pageSize = 20 }: Props) {
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+
   const showPagination = onPageChange && total !== undefined && page !== undefined;
   const totalPages = showPagination ? Math.ceil(total / pageSize) : 1;
 
-  const visible = search.trim()
-    ? transactions.filter(tx => tx.description.toLowerCase().includes(search.toLowerCase()))
-    : transactions;
+  // Unique category names from current page's transactions
+  const categories = useMemo(() => {
+    const names = Array.from(new Set(transactions.map(tx => tx.category.name))).sort();
+    return names;
+  }, [transactions]);
+
+  const visible = useMemo(() => {
+    return transactions.filter(tx => {
+      const matchesSearch = !search.trim() || tx.description.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = !categoryFilter || tx.category.name === categoryFilter;
+      return matchesSearch && matchesCategory;
+    });
+  }, [transactions, search, categoryFilter]);
 
   return (
     <div>
-      <div className="mb-4">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
         <input
           type="text"
           placeholder="Search transactions…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full sm:w-72 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-slate-700 placeholder-slate-400"
+          className="w-full sm:w-64 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-slate-700 placeholder-slate-400"
         />
+        <select
+          value={categoryFilter}
+          onChange={e => setCategoryFilter(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        >
+          <option value="">All categories</option>
+          {categories.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => exportCSV(visible)}
+          className="ml-auto flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+        >
+          ↓ Export CSV
+        </button>
       </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -62,6 +111,11 @@ export default function TransactionsTable({ transactions, total, page, onPageCha
                 </td>
               </tr>
             ))}
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-8 text-center text-slate-400 text-sm">No transactions match your filters.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
