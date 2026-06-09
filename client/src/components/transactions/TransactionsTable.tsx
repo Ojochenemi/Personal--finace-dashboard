@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Transaction } from '../../types/api';
 
 interface Props {
@@ -14,11 +15,25 @@ function formatAmount(cents: number, type: 'debit' | 'credit') {
 }
 
 export default function TransactionsTable({ transactions, total, page, onPageChange, pageSize = 20 }: Props) {
+  const [search, setSearch] = useState('');
   const showPagination = onPageChange && total !== undefined && page !== undefined;
   const totalPages = showPagination ? Math.ceil(total / pageSize) : 1;
 
+  const visible = search.trim()
+    ? transactions.filter(tx => tx.description.toLowerCase().includes(search.toLowerCase()))
+    : transactions;
+
   return (
     <div>
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search transactions…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full sm:w-72 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-slate-700 placeholder-slate-400"
+        />
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -30,7 +45,7 @@ export default function TransactionsTable({ transactions, total, page, onPageCha
             </tr>
           </thead>
           <tbody>
-            {transactions.map(tx => (
+            {visible.map(tx => (
               <tr key={tx.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                 <td className="py-3 pr-4 text-slate-500 tabular-nums whitespace-nowrap">{tx.date}</td>
                 <td className="py-3 pr-4 text-slate-800">{tx.description}</td>
